@@ -1,0 +1,3 @@
+[submodule "awesome-agents"]
+	path = awesome-agents
+	url = https://github.com/m13v/awesome-agents.git
