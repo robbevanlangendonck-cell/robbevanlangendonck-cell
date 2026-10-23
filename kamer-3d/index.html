@@ -97,7 +97,7 @@ button:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
 
 <div id="menu" class="menu">
   <div class="card" role="dialog" aria-labelledby="menuTitle">
-    <p class="eyebrow">3,50 × 5,50 m · plafond 2,60 m</p>
+    <p class="eyebrow">3,50 × 5,50 m · plafond 2,70 m</p>
     <h1 id="menuTitle">Robbes kamer</h1>
     <p class="lead">Loop vrij rond in je kamer, in first person.</p>
     <ul class="controls only-desk">
@@ -124,9 +124,9 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.m
 //  z = 0 raammuur, z = L muur aan het hoofdeinde van het bed
 //  y = 0 vloer, y = H plafond
 // ============================================================
-const W = 3.5, L = 5.5, H = 2.6, T = 0.3;   // kamer + muurdikte
-const SILL = 1.25, WTOP = 2.3;               // onder- en bovenkant ramen
-const NWIN = 1.87, WWIN = 0.9;               // breedte raam in raammuur / blauwe muur
+const W = 3.5, L = 5.5, H = 2.7, T = 0.3;   // kamer + muurdikte (plafond gemeten t.o.v. de LEGO Saturn V van 1 m)
+const SILL = 1.22, WTOP = 2.38;              // onder- en bovenkant ramen (PAX van 236 cm past net onder de rolluikkast)
+const NWIN = 2.2, WWIN = 1.1;                // breedte raam in raammuur / blauwe muur
 const EYE = 1.62, R = 0.22;                  // ooghoogte en 'dikte' van de speler
 const LAMP = { x: 1.75, z: 2.75 };
 
@@ -143,7 +143,7 @@ const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
 // ---------- renderer ----------
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -157,8 +157,17 @@ scene.background = new THREE.Color(0x070b12);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.03, 80);
 camera.rotation.order = 'YXZ';
 
+// elk meubel komt in een eigen benoemde groep (handig in Blender of een game-engine)
+let cur = scene;
+function begin(name) {
+  cur = new THREE.Group();
+  cur.name = name;
+  scene.add(cur);
+  return cur;
+}
+
 // ---------- hulpfuncties ----------
-function tex(w, h, draw, { repeat, srgb = true, rot } = {}) {
+function tex(w, h, draw, { repeat, srgb = true, rot, alpha = false } = {}) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   draw(c.getContext('2d'), w, h);
@@ -167,10 +176,17 @@ function tex(w, h, draw, { repeat, srgb = true, rot } = {}) {
   t.anisotropy = ANISO;
   if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
   if (rot) { t.center.set(0.5, 0.5); t.rotation = rot; }
+  if (!alpha) t.userData.mimeType = 'image/jpeg';   // kleiner .glb-bestand
   return t;
 }
-const mat = (color, roughness = 0.8, extra = {}) =>
-  new THREE.MeshStandardMaterial({ color, roughness, metalness: 0, ...extra });
+// eenvoudige materialen hergebruiken: minder materialen = minder draw calls
+const matCache = new Map();
+function mat(color, roughness = 0.8, extra) {
+  if (extra) return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0, ...extra });
+  const key = color + '/' + roughness;
+  if (!matCache.has(key)) matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 }));
+  return matCache.get(key);
+}
 
 function add(mesh, parent, shadow = true) {
   mesh.castShadow = shadow;
@@ -179,25 +195,25 @@ function add(mesh, parent, shadow = true) {
   return mesh;
 }
 // blok tussen twee hoekpunten
-function box(m, x0, y0, z0, x1, y1, z1, parent = scene, shadow = true) {
+function box(m, x0, y0, z0, x1, y1, z1, parent = cur, shadow = true) {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), m);
   mesh.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
   return add(mesh, parent, shadow);
 }
 // rechtopstaande cilinder met onderkant op y0
-function cyl(m, r, h, x, y0, z, parent = scene, { rt = r, seg = 24, shadow = true } = {}) {
+function cyl(m, r, h, x, y0, z, parent = cur, { rt = r, seg = 24, shadow = true } = {}) {
   const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, r, h, seg), m);
   mesh.position.set(x, y0 + h / 2, z);
   return add(mesh, parent, shadow);
 }
 // cilinder die langs de x-as ligt
-function cylX(m, r, len, x, y, z, parent = scene) {
+function cylX(m, r, len, x, y, z, parent = cur) {
   const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 20), m);
   mesh.rotation.z = Math.PI / 2;
   mesh.position.set(x, y, z);
   return add(mesh, parent);
 }
-function plane(m, w, h, x, y, z, rotY, parent = scene) {
+function plane(m, w, h, x, y, z, rotY, parent = cur) {
   const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
   p.position.set(x, y, z);
   p.rotation.y = rotY;
@@ -224,7 +240,7 @@ function roundedBoxGeo(w, h, d, r, s = 3) {
   }
   return g;
 }
-function rbox(m, w, h, d, r, x, y, z, parent = scene) {
+function rbox(m, w, h, d, r, x, y, z, parent = cur) {
   const mesh = new THREE.Mesh(roundedBoxGeo(w, h, d, r), m);
   mesh.position.set(x, y, z);
   return add(mesh, parent);
@@ -376,7 +392,7 @@ const mapTex = tex(2048, 1018, (g, w, h) => {
       g.closePath(); g.fill();
     }
   }
-});
+}, { alpha: true });
 
 // computerscherm
 const screenTex = tex(1200, 675, (g, w, h) => {
@@ -470,7 +486,7 @@ const latticeTex = tex(128, 128, (g, w, h) => {
   g.strokeRect(0, 0, w, h);
   g.lineWidth = 4;
   g.beginPath(); g.moveTo(0, 0); g.lineTo(w, h); g.moveTo(w, 0); g.lineTo(0, h); g.stroke();
-}, { repeat: [2, 3] });
+}, { repeat: [2, 3], alpha: true });
 
 // tekening op de zijkant van de KALLAX
 const drawingTex = tex(300, 420, (g, w, h) => {
@@ -549,41 +565,44 @@ const M = {
   chairBack: mat(0x1b1d22, 0.9),
 };
 M.metal.envMapIntensity = 1.2;
+for (const [name, m] of Object.entries(M)) m.name = name;
 
 // ============================================================
 //  KAMER
 // ============================================================
 // vloer en plafond
+begin('Vloer en plafond');
 {
   const f = new THREE.Mesh(new THREE.PlaneGeometry(W, L), M.floor);
   f.rotation.x = -Math.PI / 2; f.position.set(W / 2, 0, L / 2);
-  add(f, scene, false);
+  add(f, cur, false);
   const c = new THREE.Mesh(new THREE.PlaneGeometry(W, L), M.ceiling);
   c.rotation.x = Math.PI / 2; c.position.set(W / 2, H, L / 2);
-  add(c, scene, false);
+  add(c, cur, false);
 }
 // raammuur (noord), met hoekraam
-box(M.wall, -T, 0, -T, W + T, SILL, 0, scene, false);
-box(M.wall, -T, WTOP, -T, W + T, H, 0, scene, false);
-box(M.wall, NWIN, SILL, -T, W + T, WTOP, 0, scene, false);
+begin('Muren');
+box(M.wall, -T, 0, -T, W + T, SILL, 0, cur, false);
+box(M.wall, -T, WTOP, -T, W + T, H, 0, cur, false);
+box(M.wall, NWIN, SILL, -T, W + T, WTOP, 0, cur, false);
 // blauwe muur (west)
-box(M.teal, -T, 0, 0, 0, SILL, L + T, scene, false);
-box(M.teal, -T, WTOP, 0, 0, H, L + T, scene, false);
-box(M.teal, -T, SILL, WWIN, 0, WTOP, L + T, scene, false);
+box(M.teal, -T, 0, 0, 0, SILL, L + T, cur, false);
+box(M.teal, -T, WTOP, 0, 0, H, L + T, cur, false);
+box(M.teal, -T, SILL, WWIN, 0, WTOP, L + T, cur, false);
 // tv-muur (oost) en achtermuur (zuid)
-box(M.wall, W, 0, -T, W + T, H, L + T, scene, false);
-box(M.wall, -T, 0, L, W + T, H, L + T, scene, false);
+box(M.wall, W, 0, -T, W + T, H, L + T, cur, false);
+box(M.wall, -T, 0, L, W + T, H, L + T, cur, false);
 // verlaagd plafond / rolluikkast boven de ramen
-box(M.ceiling, 0, WTOP, 0, W, H, 0.3, scene, false);
-box(M.ceiling, 0, WTOP, 0.3, 0.3, H, 1.05, scene, false);
+box(M.ceiling, 0, WTOP, 0, W, H, 0.32, cur, false);
+box(M.ceiling, 0, WTOP, 0.32, 0.32, H, WWIN + 0.1, cur, false);
 // plinten
 {
   const s = 0.012, sh = 0.07;
-  box(M.skirting, 0, 0, 0, W, sh, s, scene, false);
-  box(M.skirting, 0, 0, L - s, W, sh, L, scene, false);
-  box(M.skirting, 0, 0, 0, s, sh, L, scene, false);
-  box(M.skirting, W - s, 0, 0, W, sh, 3.78, scene, false);
-  box(M.skirting, W - s, 0, 4.75, W, sh, L, scene, false);
+  box(M.skirting, 0, 0, 0, W, sh, s, cur, false);
+  box(M.skirting, 0, 0, L - s, W, sh, L, cur, false);
+  box(M.skirting, 0, 0, 0, s, sh, L, cur, false);
+  box(M.skirting, W - s, 0, 0, W, sh, 3.78, cur, false);
+  box(M.skirting, W - s, 0, 4.75, W, sh, L, cur, false);
 }
 
 // ---------- ramen ----------
@@ -610,15 +629,16 @@ function windowUnit(width, sashes, handleAt) {
   box(M.metal, handleAt - 0.01, SILL + 0.42, 0.06, handleAt + 0.01, SILL + 0.57, 0.075, g);
   return g;
 }
+begin('Ramen');
 {
   const north = windowUnit(NWIN + 0.12, 2, (NWIN + 0.12) / 2 + 0.07);
   north.position.set(-0.12, 0, -0.12);
-  scene.add(north);
+  cur.add(north);
   const west = windowUnit(WWIN + 0.12, 1, 0.09);
   west.position.set(-0.12, 0, WWIN);
   west.rotation.y = Math.PI / 2;
-  scene.add(west);
-  box(M.frame, -0.2, SILL, -0.2, -0.06, WTOP, -0.06, scene, false);   // hoekstijl
+  cur.add(west);
+  box(M.frame, -0.2, SILL, -0.2, -0.06, WTOP, -0.06, cur, false);   // hoekstijl
   // arduinen vensterbanken
   box(M.sill, -0.13, SILL - 0.03, -0.13, NWIN, SILL, 0.035);
   box(M.sill, -0.13, SILL - 0.03, -0.13, 0.035, SILL, WWIN);
@@ -626,26 +646,29 @@ function windowUnit(width, sashes, handleAt) {
   const sky = new THREE.Mesh(new THREE.CylinderGeometry(25, 25, 20, 64, 1, true),
     new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide }));
   sky.position.set(W / 2, 1.6, L / 2);
-  scene.add(sky);
+  sky.name = 'Buitenkant (nacht)';
+  cur.add(sky);
 }
 
 // ---------- radiator (raammuur) ----------
+begin('Radiator');
 {
   const front = mat(0xffffff, 0.5, { map: radTex });
-  const r = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.92, 0.1),
+  const r = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.93, 0.1),
     [M.white, M.white, mat(0xd8d8d4, 0.6), M.white, front, M.white]);
-  r.position.set(0.85, 0.64, 0.085);
-  add(r, scene);
-  cyl(M.matte, 0.022, 0.09, 0.32, 0.95, 0.09);       // thermostaatkraan
-  box(M.matte, 0.32, 0.98, 0.075, 0.36, 1.0, 0.1);
-  cyl(M.metal, 0.01, 0.18, 0.42, 0, 0.08);           // leidingen
-  cyl(M.metal, 0.01, 0.18, 1.28, 0, 0.08);
+  r.position.set(1.0, 0.585, 0.085);
+  add(r, cur);
+  cyl(M.matte, 0.022, 0.09, 0.42, 0.9, 0.09);        // thermostaatkraan
+  box(M.matte, 0.42, 0.93, 0.075, 0.46, 0.95, 0.1);
+  cyl(M.metal, 0.01, 0.12, 0.52, 0, 0.08);           // leidingen
+  cyl(M.metal, 0.01, 0.12, 1.48, 0, 0.08);
 }
 
 // ---------- stopcontacten en schakelaar ----------
-for (const z of [0.36, 0.45]) box(M.matte, 0, 0.32, z - 0.04, 0.012, 0.4, z + 0.04);
-box(M.matte, 2.7, 0.99, 0, 2.78, 1.07, 0.012);
-box(M.matte, 2.7, 1.08, 0, 2.78, 1.16, 0.012);
+begin('Stopcontacten en schakelaar');
+for (const z of [0.27, 0.36]) box(M.matte, 0, 0.3, z - 0.036, 0.012, 0.372, z + 0.036);
+box(M.matte, 2.36, 0.99, 0, 2.43, 1.06, 0.012);
+box(M.matte, 2.36, 1.07, 0, 2.43, 1.14, 0.012);
 
 // ============================================================
 //  BLAUWE MUUR: halters, ladeblok, bureau, prikbord, bed
@@ -659,27 +682,32 @@ function dumbbell(cx, cz) {
     cylX(M.metal, 0.024, 0.03, cx + s * 0.165, 0.1, cz);
   }
 }
-dumbbell(0.26, 0.17);
-dumbbell(0.27, 0.41);
+begin('Halters');
+dumbbell(0.26, 0.14);
+dumbbell(0.27, 0.35);
 
 // ladeblok op wieltjes + printer
+begin('Ladeblok en printer');
 {
-  box(M.white, 0.03, 0.045, 0.58, 0.53, 0.62, 1.01);
-  box(M.gap, 0.53, 0.455, 0.585, 0.532, 0.462, 1.005, scene, false);
-  for (const [x, z] of [[0.08, 0.63], [0.48, 0.63], [0.08, 0.96], [0.48, 0.96]]) cyl(M.black, 0.022, 0.045, x, 0, z);
+  // ladeblok 42 × 50 × 62 cm (gemeten t.o.v. de printer)
+  box(M.white, 0.03, 0.045, 0.46, 0.53, 0.62, 0.88);
+  box(M.gap, 0.53, 0.455, 0.465, 0.532, 0.462, 0.875, cur, false);
+  for (const [x, z] of [[0.08, 0.51], [0.48, 0.51], [0.08, 0.83], [0.48, 0.83]]) cyl(M.black, 0.022, 0.045, x, 0, z);
+  // HP Color Laser 150nw: 38,2 × 30,9 × 21,2 cm
   const p = new THREE.Group();
-  p.position.set(0.1, 0.62, 0.61);
-  scene.add(p);
-  box(M.white, 0, 0, 0, 0.37, 0.21, 0.38, p);
-  box(M.dark, 0.03, 0.21, 0.03, 0.34, 0.222, 0.35, p);
-  box(M.black, 0.1, 0.214, 0.06, 0.3, 0.226, 0.3, p);
-  box(M.white, 0.37, 0.005, 0.05, 0.42, 0.04, 0.33, p);
-  const logo = cylX(M.gap, 0.016, 0.004, 0.372, 0.12, 0.19, p);
+  p.position.set(0.21, 0.62, 0.479);
+  cur.add(p);
+  box(M.white, 0, 0, 0, 0.309, 0.2115, 0.382, p);
+  box(M.dark, 0.03, 0.2115, 0.03, 0.28, 0.222, 0.352, p);
+  box(M.black, 0.08, 0.214, 0.06, 0.25, 0.226, 0.3, p);
+  box(M.white, 0.309, 0.005, 0.05, 0.36, 0.04, 0.332, p);
+  const logo = cylX(M.gap, 0.016, 0.004, 0.311, 0.12, 0.191, p);
   logo.castShadow = false;
 }
 
 // bureau (wit, paneelpoten)
-const DESK = { z0: 1.05, z1: 2.8, d: 0.68, h: 0.75 };
+begin('Bureau');
+const DESK = { z0: 0.9, z1: 2.5, d: 0.68, h: 0.75 };   // 160 cm, geschat t.o.v. het 27"-scherm en het toetsenbord
 box(M.white, 0, DESK.h - 0.03, DESK.z0, DESK.d, DESK.h, DESK.z1);
 box(M.white, 0.01, 0, DESK.z0, DESK.d, DESK.h - 0.03, DESK.z0 + 0.05);
 box(M.white, 0.01, 0, DESK.z1 - 0.05, DESK.d, DESK.h - 0.03, DESK.z1);
@@ -688,48 +716,49 @@ box(M.white, 0.01, 0, DESK.z1 - 0.05, DESK.d, DESK.h - 0.03, DESK.z1);
 const desk = new THREE.Group();
 desk.position.set(DESK.d, DESK.h, DESK.z1);
 desk.rotation.y = Math.PI / 2;
-scene.add(desk);
+cur.add(desk);
 {
   // bureaumat
-  const mt = new THREE.Mesh(new THREE.BoxGeometry(1.13, 0.003, 0.42), [M.dark, M.dark, mat(0xffffff, 0.9, { map: matTex }), M.dark, M.dark, M.dark]);
-  mt.position.set(0.885, 0.0015, -0.35);
+  const mt = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.003, 0.4), [M.dark, M.dark, mat(0xffffff, 0.9, { map: matTex }), M.dark, M.dark, M.dark]);
+  mt.position.set(0.8, 0.0015, -0.33);
   add(mt, desk, false);
   // scherm (iiyama 27")
   const mon = new THREE.Group();
-  mon.position.set(0.84, 0.003, -0.5);
+  mon.position.set(0.8, 0.003, -0.5);
   desk.add(mon);
+  // iiyama ProLite 27": 61,3 × 43,5 cm met voet
   rbox(M.black, 0.25, 0.016, 0.19, 0.006, 0, 0.008, -0.02, mon);
-  box(M.black, -0.025, 0.01, -0.08, 0.025, 0.3, -0.05, mon);
-  box(M.black, -0.31, 0.1, -0.012, 0.31, 0.475, 0.012, mon);
-  rbox(M.black, 0.4, 0.24, 0.05, 0.02, 0, 0.29, -0.03, mon);
-  const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.338), new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }));
-  scr.position.set(0, 0.2955, 0.0125);
+  box(M.black, -0.025, 0.01, -0.08, 0.025, 0.26, -0.05, mon);
+  box(M.black, -0.306, 0.07, -0.012, 0.306, 0.435, 0.012, mon);
+  rbox(M.black, 0.4, 0.24, 0.05, 0.02, 0, 0.25, -0.03, mon);
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.597, 0.336), new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }));
+  scr.position.set(0, 0.2545, 0.0125);
   mon.add(scr);
   // toetsenbord en muis
   const kb = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.022, 0.14), [M.dark, M.dark, mat(0xffffff, 0.7, { map: keysTex }), M.dark, M.dark, M.dark]);
-  kb.position.set(0.88, 0.014, -0.33);
+  kb.position.set(0.8, 0.014, -0.3);
   add(kb, desk);
   const mouse = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 10), M.black);
   mouse.scale.set(0.9, 0.45, 1.5);
-  mouse.position.set(1.25, 0.018, -0.3);
+  mouse.position.set(1.12, 0.018, -0.28);
   add(mouse, desk);
   // laptop (dicht)
-  const lap = rbox(M.metal, 0.3, 0.016, 0.21, 0.006, 1.58, 0.01, -0.29, desk);
+  const lap = rbox(M.metal, 0.314, 0.018, 0.219, 0.006, 1.42, 0.011, -0.27, desk);   // MacBook Pro 13"
   lap.rotation.y = -0.08;
   lap.material = new THREE.MeshStandardMaterial({ color: 0xc9ccd0, roughness: 0.32, metalness: 0.75, envMap: ENV });
   // pennenpot
-  cyl(M.dark, 0.042, 0.1, 1.58, 0, -0.6, desk, { rt: 0.045 });
+  cyl(M.dark, 0.042, 0.1, 1.45, 0, -0.6, desk, { rt: 0.045 });
   for (let i = 0; i < 7; i++) {
-    const pen = cyl(i % 3 ? M.black : M.matte, 0.004, 0.15, 1.58 + (rnd() - 0.5) * 0.04, 0.03, -0.6 + (rnd() - 0.5) * 0.04, desk, { seg: 6 });
+    const pen = cyl(i % 3 ? M.black : M.matte, 0.004, 0.15, 1.45 + (rnd() - 0.5) * 0.04, 0.03, -0.6 + (rnd() - 0.5) * 0.04, desk, { seg: 6 });
     pen.rotation.set((rnd() - 0.5) * 0.4, 0, (rnd() - 0.5) * 0.4);
   }
   // koptelefoon
   const hp = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.012, 8, 24, Math.PI), M.black);
   hp.rotation.x = -Math.PI / 2;
-  hp.position.set(1.26, 0.03, -0.56);
+  hp.position.set(1.14, 0.03, -0.56);
   add(hp, desk);
   for (const s of [-1, 1]) {
-    const cup = cyl(M.black, 0.045, 0.035, 1.26 + s * 0.08, 0, -0.56, desk);
+    const cup = cyl(M.black, 0.045, 0.035, 1.14 + s * 0.08, 0, -0.56, desk);
     cup.scale.set(1, 1, 1.2);
   }
   // brooddoos, glas, blikje, schriften met afstandsbediening, rgb-afstandsbediening
@@ -741,11 +770,12 @@ scene.add(desk);
   box(mat(0x3d6fd1, 0.7), 0.065, 0.035, -0.655, 0.35, 0.05, -0.47, desk);
   box(M.matte, 0.07, 0.05, -0.65, 0.34, 0.075, -0.475, desk);
   box(M.black, 0.12, 0.075, -0.6, 0.32, 0.09, -0.55, desk);
-  box(M.matte, 1.42, 0, -0.58, 1.47, 0.008, -0.5, desk);
+  box(M.matte, 1.24, 0, -0.62, 1.29, 0.008, -0.54, desk);
 }
 // prikbord
+begin('Prikbord');
 {
-  const z0 = 1.98, z1 = 2.76, y0 = 1.22, y1 = 1.72, fw = 0.02;
+  const z0 = 1.81, z1 = 2.61, y0 = 1.22, y1 = 1.72, fw = 0.02;   // 80 × 50 cm
   box(M.birch, 0, y0, z0, 0.022, y0 + fw, z1);
   box(M.birch, 0, y1 - fw, z0, 0.022, y1, z1);
   box(M.birch, 0, y0, z0, 0.022, y1, z0 + fw);
@@ -754,11 +784,12 @@ scene.add(desk);
 }
 
 // bureaustoel (kijkt naar de muur)
+begin('Bureaustoel');
 {
   const c = new THREE.Group();
-  c.position.set(1.08, 0, 1.93);
+  c.position.set(1.08, 0, 1.7);
   c.rotation.y = Math.PI / 2;
-  scene.add(c);
+  cur.add(c);
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2 + 0.3;
     const arm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.03, 0.3), M.chairMetal);
@@ -789,15 +820,16 @@ scene.add(desk);
 }
 
 // bed (hoofdeinde tegen de achtermuur, lange zijde tegen de blauwe muur)
-const BED = { x1: 0.98, z0: 3.4 };
+begin('Bed');
+const BED = { x1: 0.96, z0: 3.43 };   // matras 90 × 200, kader 96 × 207
 {
   const { x1, z0 } = BED;
-  box(M.bedWood, 0, 0.04, z0, 0.04, 0.36, L - 0.04);
-  box(M.bedWood, x1 - 0.04, 0.04, z0, x1, 0.36, L - 0.04);
-  box(M.bedWood, 0, 0.04, z0, x1, 0.36, z0 + 0.04);
+  box(M.bedWood, 0, 0.04, z0, 0.03, 0.34, L - 0.04);
+  box(M.bedWood, x1 - 0.03, 0.04, z0, x1, 0.34, L - 0.04);
+  box(M.bedWood, 0, 0.04, z0, x1, 0.34, z0 + 0.03);
   box(M.dark, 0.06, 0, z0 + 0.06, x1 - 0.06, 0.05, L - 0.08);
-  box(M.standWood, 0, 0.0, L - 0.04, x1, 0.88, L);
-  rbox(M.mattress, 0.9, 0.2, 2.0, 0.03, x1 / 2, 0.34, (z0 + 0.04 + L - 0.04) / 2);
+  box(M.standWood, 0, 0.0, L - 0.04, x1, 0.87, L);
+  rbox(M.mattress, 0.9, 0.2, 2.0, 0.03, x1 / 2, 0.34, (z0 + 0.03 + L - 0.04) / 2);
   // dekbed: een doek dat over de rechterkant en het voeteneind hangt
   const nx = 30, nz = 56, xa = 0.03, xb = 1.12, za = 3.28, zb = 5.2;
   const geo = new THREE.PlaneGeometry(1, 1, nx, nz);
@@ -813,7 +845,7 @@ const BED = { x1: 0.98, z0: 3.4 };
     p.setXYZ(i, x, Math.max(y, 0.12), z);
   }
   geo.computeVertexNormals();
-  add(new THREE.Mesh(geo, M.duvet), scene);
+  add(new THREE.Mesh(geo, M.duvet), cur);
   const pil = rbox(M.pillow, 0.66, 0.13, 0.36, 0.06, 0.45, 0.5, 5.24);
   pil.rotation.x = -0.15;
   const cu = rbox(M.cushion, 0.36, 0.1, 0.28, 0.05, 0.66, 0.54, 5.32);
@@ -823,8 +855,9 @@ const BED = { x1: 0.98, z0: 3.4 };
 // ============================================================
 //  ACHTERMUUR: nachtkastje, Saturn V, klapstoel, egel
 // ============================================================
+begin('Nachtkastje');
 {
-  const x0 = 1.0, x1 = 1.48, z0 = 5.06, ht = 0.52;
+  const x0 = 0.98, x1 = 1.48, z0 = 5.08, ht = 0.52;
   box(M.standWood, x0, 0.02, z0, x1, ht, L);
   for (const [a, b] of [[0.04, 0.26], [0.28, 0.5]]) {
     box(M.standWood, x0 + 0.01, a, z0 - 0.012, x1 - 0.01, b, z0);
@@ -832,16 +865,18 @@ const BED = { x1: 0.98, z0: 3.4 };
   }
   // wekkerradio, gele doos, afstandsbediening airco
   box(M.matte, 1.06, ht, 5.3, 1.26, ht + 0.11, 5.36);
-  box(M.black, 1.075, ht + 0.02, 5.298, 1.245, ht + 0.095, 5.3, scene, false);
+  box(M.black, 1.075, ht + 0.02, 5.298, 1.245, ht + 0.095, 5.3, cur, false);
   cyl(mat(0xf2c418, 0.5), 0.04, 0.035, 1.3, ht, 5.18);
   const rm = box(M.matte, 1.14, ht, 5.12, 1.19, ht + 0.018, 5.27);
   rm.rotation.y = 0.2;
 }
 // LEGO Saturn V op het nachtkastje
+begin('LEGO Saturn V');
 {
   const r = new THREE.Group();
-  r.position.set(1.4, 0.52, 5.36);
-  scene.add(r);
+  r.position.set(1.38, 0.52, 5.36);
+  r.scale.set(1.1, 0.966, 1.1);   // LEGO 92176: 100 cm hoog, vinnen 17 cm
+  cur.add(r);
   const white = mat(0xf4f4f2, 0.45), stage = mat(0xffffff, 0.45, { map: saturnTex });
   cyl(M.black, 0.03, 0.03, 0, 0, 0, r);
   for (let i = 0; i < 4; i++) {
@@ -863,21 +898,23 @@ const BED = { x1: 0.98, z0: 3.4 };
   cyl(mat(0xc4262e, 0.5), 0.004, 0.05, 0, 0.985, 0, r, { seg: 8 });
 }
 // klapstoel tegen de achtermuur
+begin('Klapstoel');
 {
   const c = new THREE.Group();
-  c.position.set(3.12, 0, 5.36);
+  c.position.set(2.55, 0, 5.36);   // gemeten op foto 2
   c.rotation.x = 0.1;
-  scene.add(c);
+  cur.add(c);
   for (const x of [-0.2, 0.2]) box(M.pine, x - 0.014, 0, -0.014, x + 0.014, 0.84, 0.014, c);
   for (const x of [-0.17, 0.17]) box(M.pine, x - 0.012, 0, -0.045, x + 0.012, 0.74, -0.02, c);
   for (let i = 0; i < 6; i++) box(M.pine, -0.18, 0.3 + i * 0.045, -0.04, 0.18, 0.33 + i * 0.045, -0.028, c);
   for (let i = 0; i < 3; i++) box(M.pine, -0.21, 0.62 + i * 0.07, 0.014, 0.21, 0.66 + i * 0.07, 0.026, c);
 }
 // egel-knuffel
+begin('Egel (knuffel)');
 {
   const e = new THREE.Group();
-  e.position.set(2.45, 0, 5.34);
-  scene.add(e);
+  e.position.set(2.2, 0, 5.34);
+  cur.add(e);
   const geo = new THREE.IcosahedronGeometry(0.1, 3);
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -906,32 +943,34 @@ const BED = { x1: 0.98, z0: 3.4 };
 // ============================================================
 //  BLAUWE MUUR BOVEN HET BED: airco en wandplankjes
 // ============================================================
+begin('Airco en wandplankjes');
 {
-  rbox(M.matte, 0.22, 0.29, 0.8, 0.035, 0.115, 2.19, 4.85);
-  box(M.gap, 0.15, 2.05, 4.52, 0.225, 2.075, 5.18, scene, false);
-  box(M.matte, 0, 2.33, 4.4, 0.075, H, 4.5);
-  box(M.white, 0, 1.8, 4.35, 0.24, 1.835, 4.95);
-  box(M.white, 0, 1.55, 3.65, 0.24, 1.585, 4.25);
+  // Mitsubishi Electric MSZ-HR: 83,8 × 28 × 22,8 cm
+  rbox(M.matte, 0.228, 0.28, 0.838, 0.035, 0.114, 2.36, 4.85);
+  box(M.gap, 0.15, 2.215, 4.5, 0.226, 2.24, 5.2, cur, false);
+  box(M.matte, 0, 2.22, 4.33, 0.08, H, 4.43);
+  box(M.white, 0, 1.865, 4.35, 0.24, 1.9, 4.95);
+  box(M.white, 0, 1.625, 3.65, 0.24, 1.66, 4.25);
   // cactussen
   for (const z of [4.72, 4.85]) {
-    cyl(M.matte, 0.032, 0.055, 0.12, 1.835, z, scene, { rt: 0.037 });
-    cyl(mat(0x55803f, 0.8), 0.018, 0.08, 0.12, 1.88, z, scene, { seg: 10 });
+    cyl(M.matte, 0.032, 0.055, 0.12, 1.9, z, cur, { rt: 0.037 });
+    cyl(mat(0x55803f, 0.8), 0.018, 0.08, 0.12, 1.945, z, cur, { seg: 10 });
   }
   // plant in rieten mand
-  cyl(mat(0xb98d55, 1), 0.07, 0.1, 0.12, 1.585, 4.13, scene, { rt: 0.08 });
+  cyl(mat(0xb98d55, 1), 0.07, 0.1, 0.12, 1.66, 4.13, cur, { rt: 0.08 });
   const leaf = mat(0x4f7d3a, 0.8);
   for (let i = 0; i < 9; i++) {
     const lf = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), leaf);
     const a = (i / 9) * Math.PI * 2;
     lf.scale.set(0.45, 1.3, 0.25);
-    lf.position.set(0.12 + Math.cos(a) * 0.04, 1.73 + rnd() * 0.04, 4.13 + Math.sin(a) * 0.04);
+    lf.position.set(0.12 + Math.cos(a) * 0.04, 1.805 + rnd() * 0.04, 4.13 + Math.sin(a) * 0.04);
     lf.rotation.set(Math.sin(a) * 0.5, -a, Math.cos(a) * 0.5);
-    add(lf, scene);
+    add(lf, cur);
   }
   // LEGO Eiffeltoren
   const t = new THREE.Group();
-  t.position.set(0.12, 1.585, 3.86);
-  scene.add(t);
+  t.position.set(0.12, 1.66, 3.86);
+  cur.add(t);
   const gold = new THREE.MeshStandardMaterial({ color: 0xa88445, roughness: 0.5, metalness: 0.3, map: latticeTex, alphaTest: 0.5, side: THREE.DoubleSide, envMap: ENV });
   box(M.black, -0.1, 0, -0.1, 0.1, 0.012, 0.1, t);
   const sec = (rb, rt, h, y) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 4, 1, true), gold); m.rotation.y = Math.PI / 4; m.position.y = y + h / 2; add(m, t); };
@@ -941,17 +980,18 @@ const BED = { x1: 0.98, z0: 3.4 };
   box(gold, -0.026, 0.232, -0.026, 0.026, 0.24, 0.026, t);
   sec(0.026, 0.006, 0.17, 0.24);
   cyl(gold, 0.003, 0.03, 0, 0.41, 0, t, { seg: 6 });
-  box(M.black, -0.05, 1.585, 3.7, 0.11, 1.62, 3.77);
+  box(M.black, 0.03, 1.66, 3.7, 0.18, 1.695, 3.77);
 }
 
 // ============================================================
 //  TV-MUUR: kleerkast, PS5, tv, wereldkaart, Poäng, KALLAX, deur
 // ============================================================
 // kleerkast met sporttas
+begin('Kleerkast PAX');
 {
-  const x0 = 2.92, z0 = 0.04, z1 = 1.05, ht = 2.12;
+  const x0 = 2.92, z0 = 0.02, z1 = 1.02, ht = 2.36;   // IKEA PAX 100 × 58 × 236 cm
   box(M.birch, x0 + 0.01, 0, z0, W, ht, z1);
-  box(M.dark, x0 + 0.02, 0, z0 + 0.02, x0 + 0.04, 0.06, z1 - 0.02, scene, false);
+  box(M.dark, x0 + 0.02, 0, z0 + 0.02, x0 + 0.04, 0.06, z1 - 0.02, cur, false);
   const mid = (z0 + z1) / 2;
   box(M.birch, x0 - 0.008, 0.06, z0 + 0.003, x0 + 0.012, ht - 0.01, mid - 0.003);
   box(M.birch, x0 - 0.008, 0.06, mid + 0.003, x0 + 0.012, ht - 0.01, z1 - 0.003);
@@ -964,39 +1004,42 @@ const BED = { x1: 0.98, z0: 3.4 };
   bag.rotation.x = Math.PI / 2;
   bag.scale.set(1.15, 1, 0.85);
   bag.position.set(3.2, ht + 0.12, 0.68);
-  add(bag, scene);
+  add(bag, cur);
   for (const z of [0.5, 0.86]) {
     const band = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.012, 6, 24), M.black);
     band.scale.set(1.15, 0.85, 1);
     band.position.set(3.2, ht + 0.12, z);
-    add(band, scene);
+    add(band, cur);
   }
 }
 // PS5 naast de kast
+begin('PS5');
 {
-  const x0 = 3.2, x1 = 3.46, z = 1.14;
+  const x0 = 3.2, x1 = 3.46, z = 1.1;   // PS5: 39 × 10,4 × 26 cm
   box(M.matte, x0, 0, z - 0.055, x1, 0.39, z - 0.035);
   box(M.matte, x0, 0, z + 0.035, x1, 0.39, z + 0.055);
   box(M.black, x0 + 0.01, 0.01, z - 0.036, x1 - 0.01, 0.375, z + 0.036);
 }
 // tv aan de muur
+begin('Tv en wereldkaart');
 {
-  const z0 = 1.27, z1 = 2.24, y0 = 0.42, y1 = 0.98;
-  box(M.dark, W - 0.03, 0.6, 1.62, W, 0.8, 1.9);
+  const z0 = 1.24, z1 = 2.203, y0 = 0.46, y1 = 1.021;   // 43": 96,3 × 56,1 cm
+  box(M.dark, W - 0.03, 0.64, 1.58, W, 0.84, 1.86);
   box(M.black, W - 0.075, y0, z0, W - 0.03, y1, z1);
   const s = plane(new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 0.12, metalness: 0.2, envMap: ENV }),
     z1 - z0 - 0.02, y1 - y0 - 0.02, W - 0.0755, (y0 + y1) / 2, (z0 + z1) / 2, -Math.PI / 2);
   s.castShadow = false;
   // wereldkaart
-  const m = plane(mat(0xffffff, 0.9, { map: mapTex, transparent: true, depthWrite: false }), 1.3, 0.646, W - 0.002, 1.36, 1.9, -Math.PI / 2);
+  const m = plane(mat(0xffffff, 0.9, { map: mapTex, transparent: true, depthWrite: false }), 1.45, 0.721, W - 0.002, 1.41, 1.93, -Math.PI / 2);
   m.receiveShadow = true;
 }
 // IKEA Poäng
+begin('Poang');
 {
   const g = new THREE.Group();
   g.position.set(2.93, 0, 2.7);
   g.rotation.y = -0.47;
-  scene.add(g);
+  cur.add(g);
   const seat = curvePts([[0.37, 0.4], [0.24, 0.36], [0.04, 0.3], [-0.14, 0.3], [-0.26, 0.38], [-0.33, 0.62], [-0.38, 0.86], [-0.41, 0.97]], 30);
   strip(seat, 0.56, 0.09, M.poangFabric, g);
   // het frame loopt 6 cm onder/achter het kussen
@@ -1015,6 +1058,7 @@ const BED = { x1: 0.98, z0: 3.4 };
   add(head, g);
 }
 // KALLAX 1×4 met inzetdeurtjes, ordners en de Ecto-1
+begin('KALLAX');
 {
   const x0 = 3.11, z0 = 3.3, z1 = 3.72, ht = 1.47, o = 0.039, s = 0.016;
   const kw = mat(0xf3f3f0, 0.5);
@@ -1027,7 +1071,7 @@ const BED = { x1: 0.98, z0: 3.4 };
   for (let i = 1; i < 4; i++) box(kw, x0, cy(i) - s, z0 + o, W, cy(i), z1 - o);
   for (const i of [0, 3]) {
     box(kw, x0 + 0.004, cy(i) + 0.003, z0 + o + 0.002, x0 + 0.02, cy(i) + cube - 0.003, z1 - o - 0.002);
-    box(M.gap, x0 + 0.002, cy(i) + cube - 0.03, 3.47, x0 + 0.006, cy(i) + cube - 0.004, 3.55, scene, false);
+    box(M.gap, x0 + 0.002, cy(i) + cube - 0.03, 3.47, x0 + 0.006, cy(i) + cube - 0.004, 3.55, cur, false);
   }
   // ordners
   const colors = [0x1b1b1d, 0xc8202a, 0x2aa6d6, 0xd6dadd, 0x6c3fa0, 0x2346b5];
@@ -1036,7 +1080,7 @@ const BED = { x1: 0.98, z0: 3.4 };
   colors.forEach((c, i) => {
     const y0 = cy(2), bw = widths[i];
     box(mat(c, 0.6), x0 + 0.03, y0, z, x0 + 0.32, y0 + 0.315, z + bw - 0.003);
-    box(M.matte, x0 + 0.027, y0 + 0.13, z + 0.008, x0 + 0.03, y0 + 0.29, z + bw - 0.011, scene, false);
+    box(M.matte, x0 + 0.027, y0 + 0.13, z + 0.008, x0 + 0.03, y0 + 0.29, z + bw - 0.011, cur, false);
     cylX(M.black, 0.012, 0.004, x0 + 0.028, y0 + 0.06, z + bw / 2 - 0.0015);
     z += bw;
   });
@@ -1048,7 +1092,7 @@ const BED = { x1: 0.98, z0: 3.4 };
   // Ecto-1 + controllers
   const e = new THREE.Group();
   e.position.set(3.34, ht, 3.51);
-  scene.add(e);
+  cur.add(e);
   const wh = mat(0xf0efe9, 0.45), red = mat(0xc42330, 0.5), win = mat(0x2a3440, 0.2);
   for (const [x, zz] of [[-0.07, -0.15], [0.07, -0.15], [-0.07, 0.15], [0.07, 0.15]]) cylX(M.black, 0.035, 0.03, x, 0.035, zz, e);
   box(wh, -0.08, 0.035, -0.235, 0.08, 0.1, 0.235, e);
@@ -1063,10 +1107,12 @@ const BED = { x1: 0.98, z0: 3.4 };
   box(red, -0.02, 0.185, 0.08, 0.02, 0.21, 0.1, e);
   cyl(M.dark, 0.003, 0.12, 0.05, 0.185, 0.09, e, { seg: 6 });
   box(M.metal, -0.06, 0.04, 0.235, 0.06, 0.08, 0.24, e);
-  rbox(M.matte, 0.15, 0.045, 0.1, 0.02, 3.17, ht + 0.0225, 3.42).rotation.y = 0.4;
-  rbox(M.black, 0.15, 0.045, 0.1, 0.02, 3.18, ht + 0.0225, 3.63).rotation.y = -0.3;
+  // DualSense: 16 × 6,6 × 10,6 cm
+  rbox(M.matte, 0.16, 0.055, 0.106, 0.025, 3.17, ht + 0.0275, 3.42).rotation.y = 0.4;
+  rbox(M.black, 0.16, 0.055, 0.106, 0.025, 3.18, ht + 0.0275, 3.63).rotation.y = -0.3;
 }
 // deur (dicht)
+begin('Deur');
 {
   const za = 3.85, zb = 4.68;
   box(M.door, W - 0.045, 0.005, za, W - 0.005, 2.02, zb);
@@ -1084,23 +1130,25 @@ const BED = { x1: 0.98, z0: 3.4 };
 // ============================================================
 //  PLAFOND: hanglamp (IKEA Melodi) en rookmelder
 // ============================================================
+begin('Hanglamp en rookmelder');
 const shadeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff0d8, emissiveIntensity: 0.9, roughness: 0.7, side: THREE.DoubleSide });
 {
-  const rose = cyl(M.matte, 0.06, 0.05, LAMP.x, H - 0.05, LAMP.z, scene, { rt: 0.045 });
+  const rose = cyl(M.matte, 0.06, 0.05, LAMP.x, H - 0.05, LAMP.z, cur, { rt: 0.045 });
   rose.castShadow = false;
-  cyl(M.matte, 0.003, H - 0.05 - 2.25, LAMP.x, 2.25, LAMP.z, scene, { seg: 6, shadow: false });
+  cyl(M.matte, 0.003, H - 0.05 - 2.2, LAMP.x, 2.2, LAMP.z, cur, { seg: 6, shadow: false });
   const prof = [[0.02, 0.3], [0.035, 0.295], [0.04, 0.27], [0.05, 0.23], [0.075, 0.18], [0.115, 0.12], [0.16, 0.06], [0.185, 0.02], [0.19, 0]].map(([r, y]) => new THREE.Vector2(r, y));
   const shade = new THREE.Mesh(new THREE.LatheGeometry(prof, 40), shadeMat);
-  shade.position.set(LAMP.x, 1.97, LAMP.z);
+  shade.position.set(LAMP.x, 1.95, LAMP.z);
+  shade.scale.set(0.737, 0.867, 0.737);   // MELODI 28 cm: Ø 28, hoogte 26 cm
   shade.castShadow = false;
-  scene.add(shade);
-  cyl(M.matte, 0.06, 0.035, 2.75, H - 0.035, 4.95, scene, { shadow: false });
+  cur.add(shade);
+  cyl(M.matte, 0.06, 0.035, 2.75, H - 0.035, 4.95, cur, { shadow: false });
 }
 
 // ---------- licht ----------
 scene.add(new THREE.HemisphereLight(0xeef2f7, 0xd9cfc2, 1.0));
 const bulb = new THREE.PointLight(0xffe2c2, 11, 0, 2);
-bulb.position.set(LAMP.x, 2.1, LAMP.z);
+bulb.position.set(LAMP.x, 2.06, LAMP.z);
 bulb.castShadow = true;
 bulb.shadow.mapSize.set(1024, 1024);
 bulb.shadow.bias = -0.002;
@@ -1109,7 +1157,7 @@ bulb.shadow.camera.near = 0.05;
 bulb.shadow.camera.far = 9;
 scene.add(bulb);
 const glow = new THREE.PointLight(0xd8e6ff, 0.3, 2.2, 2);
-glow.position.set(0.42, 1.05, 1.96);
+glow.position.set(0.42, 1.05, 1.7);
 scene.add(glow);
 
 // ============================================================
@@ -1119,17 +1167,17 @@ const rect = (x0, z0, x1, z1) => ({ x0, z0, x1, z1 });
 const circ = (x, z, r) => ({ x, z, r });
 const colliders = [
   rect(0, BED.z0, BED.x1 + 0.02, L),          // bed
-  rect(1.0, 5.06, 1.48, L),                    // nachtkastje
+  rect(0.98, 5.08, 1.48, L),                   // nachtkastje
   rect(0, DESK.z0, DESK.d, DESK.z1),           // bureau
-  rect(0.03, 0.58, 0.53, 1.01),                // ladeblok
-  rect(0.05, 0.05, 0.45, 0.52),                // halters
-  circ(1.08, 1.93, 0.3),                       // bureaustoel
-  rect(2.9, 0.04, W, 1.05),                    // kleerkast
-  rect(3.18, 1.08, W, 1.2),                    // PS5
+  rect(0.03, 0.46, 0.53, 0.88),                // ladeblok
+  rect(0.05, 0.03, 0.45, 0.46),                // halters
+  circ(1.08, 1.7, 0.3),                        // bureaustoel
+  rect(2.9, 0.02, W, 1.02),                    // kleerkast
+  rect(3.18, 1.04, W, 1.16),                   // PS5
   circ(2.93, 2.7, 0.42),                       // Poäng
   rect(3.11, 3.3, W, 3.72),                    // KALLAX
-  rect(2.88, 5.28, 3.36, L),                   // klapstoel
-  circ(2.45, 5.34, 0.12),                      // egel
+  rect(2.3, 5.28, 2.8, L),                     // klapstoel
+  circ(2.2, 5.34, 0.12),                       // egel
 ];
 function collide(p) {
   for (let it = 0; it < 3; it++) {
@@ -1326,11 +1374,50 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// ============================================================
+//  SNELHEID: alle vaste meshes per materiaal samenvoegen (minder draw calls)
+// ============================================================
+function mergeStatic() {
+  scene.updateMatrixWorld(true);
+  const buckets = new Map(), merged = [];
+  scene.traverse(o => {
+    if (!o.isMesh || Array.isArray(o.material) || o.material.transparent || o.material.isMeshBasicMaterial) return;
+    const key = o.material.uuid + (o.castShadow ? '+' : '-');
+    if (!buckets.has(key)) buckets.set(key, { material: o.material, cast: o.castShadow, parts: [] });
+    buckets.get(key).parts.push((o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld));
+    merged.push(o);
+  });
+  for (const o of merged) o.removeFromParent();
+  for (const { material, cast, parts } of buckets.values()) {
+    const count = parts.reduce((n, g) => n + g.attributes.position.count, 0);
+    const pos = new Float32Array(count * 3), nor = new Float32Array(count * 3), uv = new Float32Array(count * 2);
+    let i = 0;
+    for (const g of parts) {
+      pos.set(g.attributes.position.array, i * 3);
+      nor.set(g.attributes.normal.array, i * 3);
+      if (g.attributes.uv) uv.set(g.attributes.uv.array, i * 2);
+      i += g.attributes.position.count;
+      g.dispose();
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    const m = new THREE.Mesh(geo, material);
+    m.castShadow = cast;
+    m.receiveShadow = true;
+    scene.add(m);
+  }
+}
+
 function start(data) {
   if (data && typeof data.x === 'number') {
     pos.x = data.x; pos.z = data.z; yaw = data.yaw; pitch = data.pitch;
     collide(pos);
   }
+  // KAMER_EXPORT laat de benoemde meubels heel, zodat ze als .glb geëxporteerd kunnen worden
+  if (window.KAMER_EXPORT || window.KAMER_DEBUG) window.kamer = { scene, renderer, camera };
+  if (!window.KAMER_EXPORT) mergeStatic();
   resize();
   renderer.shadowMap.needsUpdate = true;
   requestAnimationFrame(frame);
