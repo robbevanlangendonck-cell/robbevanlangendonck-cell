@@ -1,0 +1,16 @@
+{
+  "regio": "Zeist",
+  "straal_km": 10,
+  "branches": ["kapper", "schoonheidssalon"],
+
+  "jouw_naam": "Robbe",
+  "jouw_bedrijf": "Jouw Webbureau",
+  "jouw_aanbod": "Ik bouw websites met online afspraken boeken voor kappers en salons.",
+  "toon": "vriendelijk, kort, je/jij, geen verkooppraat",
+
+  "claude_model": "claude-opus-5-5",
+  "opvolgen_na_dagen": 4,
+  "max_nieuwe_per_nacht": 25,
+
+  "ntfy_topic": ""
+}

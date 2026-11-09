@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Klantmachine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #efece4; --paneel: #f8f6f1; --inkt: #1d1c1a; --zacht: #6d6a63; --lijn: #d6d1c6;
+    --rood: #d4432a; --rood-zacht: #f6ddd6; --groen: #2f7d4f; --groen-zacht: #dcefe2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #171614; --paneel: #22201d; --inkt: #ece8df; --zacht: #a29d93; --lijn: #3a3732;
+            --rood-zacht: #4a231b; --groen-zacht: #1d3a28; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--inkt); font: 15px/1.5 Inter, system-ui, sans-serif; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 80px; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; letter-spacing: .04em; text-transform: lowercase; color: var(--zacht); }
+  h1 { font-size: 34px; font-weight: 600; margin: 6px 0 22px; letter-spacing: -.02em; }
+  h1 em { font-family: "Instrument Serif", serif; font-weight: 400; color: var(--rood); font-size: 40px; }
+
+  /* de machine */
+  .machine { display: flex; gap: 10px; align-items: stretch; background: var(--paneel); border: 1.5px solid var(--inkt);
+             border-radius: 14px; padding: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+  .teller { display: flex; flex-direction: column; justify-content: center; padding: 0 10px; min-width: 92px; }
+  .teller b { font-family: "JetBrains Mono", monospace; color: var(--rood); font-size: 18px; }
+  .stap { flex: 1 1 150px; border: 1.5px solid var(--inkt); border-radius: 10px; padding: 10px 12px; background: var(--bg);
+          cursor: pointer; text-align: left; color: inherit; font: inherit; transition: transform .1s; }
+  .stap:hover { transform: translateY(-1px); }
+  .stap:active { transform: translateY(1px); }
+  .stap .n { font-family: "JetBrains Mono", monospace; font-size: 22px; font-weight: 600; }
+  .stap .t { font-weight: 600; }
+  .stap.aan { background: var(--inkt); color: var(--bg); }
+  .stap.aan .mono { color: var(--bg); opacity: .7; }
+  .knop { border: 1.5px solid var(--inkt); background: var(--paneel); color: var(--inkt); border-radius: 999px;
+          padding: 6px 14px; font: 500 13px Inter, sans-serif; cursor: pointer; text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
+  .knop.donker { background: var(--inkt); color: var(--bg); }
+  .knop.rood { border-color: var(--rood); color: var(--rood); }
+  .knop:disabled { opacity: .4; cursor: default; }
+  .balk { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+  .log { margin-left: auto; }
+
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tab { border: 1px solid var(--lijn); background: transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; color: var(--zacht); font: 500 13px Inter, sans-serif; }
+  .tab.aan { border-color: var(--inkt); color: var(--inkt); background: var(--paneel); }
+
+  .kaarten { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+  .kaart { background: var(--paneel); border: 1.5px solid var(--inkt); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .kop { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+  .naam { font-weight: 600; font-size: 16px; }
+  .chip { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+  .chip.punt { background: var(--rood-zacht); color: var(--rood); border: 1px solid var(--rood); }
+  .chip.st { border: 1px solid var(--lijn); color: var(--zacht); }
+  .uitleg { color: var(--zacht); font-size: 13px; }
+  textarea { width: 100%; min-height: 96px; resize: vertical; border: 1px solid var(--lijn); border-radius: 8px; padding: 10px;
+             background: var(--bg); color: var(--inkt); font: 14px/1.45 Inter, sans-serif; }
+  .acties { display: flex; gap: 6px; flex-wrap: wrap; }
+  .links a { color: var(--inkt); font-size: 13px; }
+  .leeg { text-align: center; padding: 50px 10px; color: var(--zacht); border: 1.5px dashed var(--lijn); border-radius: 12px; }
+  .opv { border-top: 1px dashed var(--lijn); padding-top: 10px; }
+  .opv .mono { color: var(--rood); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="mono">// klantmachine</div>
+  <h1>Jouw <em>klantmachine,</em> in vier stappen.</h1>
+
+  <div class="machine" id="machine"></div>
+
+  <div class="balk">
+    <button class="knop donker" data-run="alles">▶ hele machine draaien</button>
+    <button class="knop" data-run="vinden">1 · vinden</button>
+    <button class="knop" data-run="checken">2 · checken</button>
+    <button class="knop" data-run="schrijven">3 · schrijven</button>
+    <button class="knop" data-run="opvolgen">4 · opvolgen</button>
+    <span class="mono log" id="log"></span>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="kaarten" id="kaarten"></div>
+</div>
+
+<script>
+const TABS = [
+  ["wachten", "wacht op jou", l => l.status === "concept"],
+  ["versturen", "nog versturen", l => l.status === "goedgekeurd"],
+  ["opvolgen", "opvolgen", l => l.status === "verstuurd" && l.opvolg_bericht],
+  ["verstuurd", "verstuurd", l => l.status === "verstuurd"],
+  ["gereageerd", "reacties", l => l.status === "gereageerd"],
+  ["klant", "klanten", l => l.status === "klant"],
+  ["nieuw", "nieuw / gecheckt", l => l.status === "nieuw" || l.status === "gecheckt"],
+  ["afgewezen", "afgewezen", l => l.status === "afgewezen"],
+  ["alles", "alles", () => true],
+];
+let tab = "wachten", leads = [], bezig = null;
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const telIntl = t => { let d = (t || "").replace(/[^\d+]/g, ""); if (d.startsWith("+")) return d.slice(1);
+  if (d.startsWith("00")) return d.slice(2); if (d.startsWith("0")) return "31" + d.slice(1); return d; };
+const url = w => !w ? "" : (/^https?:/.test(w) ? w : "http://" + w);
+
+async function laad() {
+  const r = await fetch("/api/leads"); const d = await r.json();
+  leads = d.leads; bezig = d.bezig;
+  teken();
+}
+
+function teken() {
+  const n = f => leads.filter(f).length;
+  const totaal = leads.length;
+  const stappen = [
+    ["vinden", "1 · vinden", "kaart → lijst", totaal],
+    ["checken", "2 · checken", "één punt per site", n(l => !["nieuw"].includes(l.status))],
+    ["schrijven", "3 · schrijven", "jij beslist", n(l => l.status === "concept")],
+    ["opvolgen", "4 · opvolgen", "seintje op je telefoon", n(l => l.status === "verstuurd")],
+  ];
+  const actief = stappen.filter(s => s[3] > 0).length;
+  document.getElementById("machine").innerHTML =
+    `<div class="teller"><span class="mono">klantmachine</span><b>${actief}/4</b></div>` +
+    stappen.map(s => `<div class="stap ${s[3] ? "aan" : ""}"><div class="mono">${s[2]}</div>
+      <div class="t">${s[1]}</div><div class="n">${s[3]}</div></div>`).join("");
+
+  document.getElementById("log").textContent = bezig.stap ? `⏳ ${bezig.log}` : (bezig.log || "");
+  document.querySelectorAll("[data-run]").forEach(b => b.disabled = !!bezig.stap);
+
+  document.getElementById("tabs").innerHTML = TABS.map(([k, label, f]) =>
+    `<button class="tab ${k === tab ? "aan" : ""}" data-tab="${k}">${label} · ${n(f)}</button>`).join("");
+
+  const filter = TABS.find(t => t[0] === tab)[2];
+  const lijst = leads.filter(filter);
+  document.getElementById("kaarten").innerHTML = lijst.length ? lijst.map(kaart).join("")
+    : `<div class="leeg">Niets hier. Druk op <b>▶ hele machine draaien</b> om bedrijven te vinden.</div>`;
+}
+
+function kaart(l) {
+  const bericht = l.status === "verstuurd" && l.opvolg_bericht ? l.opvolg_bericht : (l.bericht || "");
+  const tel = l.telefoon ? `<a class="knop" href="tel:${esc(l.telefoon)}">📞 bellen</a>
+     <a class="knop" target="_blank" href="https://wa.me/${telIntl(l.telefoon)}?text=${encodeURIComponent(bericht)}">💬 whatsapp</a>` : "";
+  const mail = l.email ? `<a class="knop" href="mailto:${esc(l.email)}?subject=${encodeURIComponent("Idee voor " + l.naam)}&body=${encodeURIComponent(bericht)}">✉ mail</a>` : "";
+  const contact = (tel || mail) ? tel + mail : `<span class="mono">geen telefoon/e-mail bekend — zoek op de site</span>`;
+
+  let acties = "";
+  if (l.status === "concept") acties = `<button class="knop donker" data-a="goedkeuren">✓ goedkeuren</button>
+      <button class="knop" data-a="opslaan">opslaan</button><button class="knop rood" data-a="afwijzen">✕ afwijzen</button>`;
+  else if (l.status === "goedgekeurd") acties = `${contact}<button class="knop donker" data-a="verstuurd">✓ verstuurd / gebeld</button>
+      <button class="knop" data-a="terug">↩ terug</button>`;
+  else if (l.status === "verstuurd") acties = `${l.opvolg_bericht ? contact + `<button class="knop donker" data-a="opgevolgd">✓ opvolging verstuurd</button>` : ""}
+      <button class="knop donker" data-a="gereageerd">💬 reageerde</button><button class="knop rood" data-a="afwijzen">✕ geen interesse</button>`;
+  else if (l.status === "gereageerd") acties = `${contact}<button class="knop donker" data-a="klant">★ klant!</button>
+      <button class="knop rood" data-a="afwijzen">✕ toch niet</button>`;
+  else if (l.status === "afgewezen") acties = `<button class="knop" data-a="terug">↩ toch proberen</button>`;
+
+  const tekstVeld = l.status === "verstuurd" && l.opvolg_bericht
+    ? `<div class="opv"><div class="mono">opvolging · ${esc((l.verstuurd_op || "").slice(0,10))} verstuurd, geen reactie</div>
+       <textarea data-veld="opvolg_bericht">${esc(l.opvolg_bericht)}</textarea></div>`
+    : (l.bericht ? `<textarea data-veld="bericht" ${["concept","goedgekeurd"].includes(l.status) ? "" : "readonly"}>${esc(l.bericht)}</textarea>` : "");
+
+  return `<div class="kaart" data-id="${l.id}">
+    <div class="kop"><div><div class="naam">${esc(l.naam)}</div>
+      <div class="mono">${esc(l.branche)} · ${esc(l.plaats)}</div></div>
+      <span class="chip st">${esc(l.status)}</span></div>
+    ${l.punt ? `<div><span class="chip punt">● ${esc(l.punt)}</span></div><div class="uitleg">${esc(l.punt_uitleg)}</div>` : ""}
+    <div class="links mono">${l.website ? `<a target="_blank" href="${esc(url(l.website))}">${esc(l.website)}</a>` : "geen website"}
+      ${l.telefoon ? " · " + esc(l.telefoon) : ""}${l.email ? " · " + esc(l.email) : ""}</div>
+    ${tekstVeld}
+    <div class="acties">${acties}</div>
+  </div>`;
+}
+
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-tab]");
+  if (t) { tab = t.dataset.tab; return teken(); }
+  const r = e.target.closest("[data-run]");
+  if (r) { await fetch("/api/run/" + r.dataset.run, {method: "POST"}); return laad(); }
+  const a = e.target.closest("[data-a]");
+  if (a) {
+    const k = a.closest(".kaart"); const body = {actie: a.dataset.a};
+    k.querySelectorAll("textarea[data-veld]:not([readonly])").forEach(x => body[x.dataset.veld] = x.value);
+    await fetch("/api/lead/" + k.dataset.id, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    laad();
+  }
+});
+
+laad();
+// alleen verversen terwijl de machine draait, zodat je bewerkingen niet verdwijnen
+setInterval(() => { if (bezig && bezig.stap) laad(); }, 3000);
+</script>
+</body>
+</html>
