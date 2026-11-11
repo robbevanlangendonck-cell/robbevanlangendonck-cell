@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="nl-BE">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Salon Lumière – afspraak maken</title>
+  <meta name="description" content="Maak, verzet of annuleer je afspraak bij Salon Lumière in Kasterlee via de chat.">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="style.css">
+  <script src="chat.js" defer></script>
+</head>
+<body>
+  <main class="chat" aria-labelledby="chat-title">
+    <header class="chat__header">
+      <h1 id="chat-title">Salon Lumière</h1>
+      <p>Digitale receptie · Kasterlee</p>
+    </header>
+
+    <div class="chat__log" id="log" role="log" aria-live="polite" aria-relevant="additions"
+         aria-label="Gesprek met de receptionist" tabindex="0">
+      <p class="notice">
+        Salon Lumière verwerkt je naam en contactgegeven alleen om je afspraak te regelen en
+        bewaart ze tot 30 dagen na de afspraak; meer lees je in de
+        <a href="privacy.html">privacyverklaring</a>.
+      </p>
+      <div class="message message--assistant">
+        <span class="visually-hidden">Receptionist: </span>
+        <p>Hallo! Ik ben de AI-receptionist van Salon Lumière. Waarmee kan ik je helpen?</p>
+      </div>
+    </div>
+
+    <div class="quick" id="quick" role="group" aria-label="Snelle keuzes">
+      <button type="button" data-message="Ik wil graag een afspraak maken.">Afspraak maken</button>
+      <button type="button" data-message="Wat zijn jullie openingsuren?">Openingsuren</button>
+      <button type="button" data-message="Ik wil mijn afspraak annuleren.">Mijn afspraak annuleren</button>
+    </div>
+
+    <form class="chat__form" id="form" autocomplete="off">
+      <label for="message" class="visually-hidden">Je bericht aan de receptionist</label>
+      <input id="message" name="message" type="text" maxlength="2000" enterkeyhint="send"
+             placeholder="Typ je bericht…" autocomplete="off">
+      <button type="submit" id="send">Verstuur</button>
+    </form>
+
+    <p class="chat__footer">Je praat met een AI-receptionist.</p>
+
+    <noscript>
+      <p class="notice notice--alert">
+        Deze chat werkt alleen met JavaScript. Bel gerust naar 014 00 00 00.
+      </p>
+    </noscript>
+  </main>
+</body>
+</html>
