@@ -1,0 +1,7 @@
+# Geheimen: de API-sleutel hoort nooit in git.
+.env
+
+# Afhankelijkheden en tijdelijke bestanden
+node_modules/
+*.log
+data/*.tmp

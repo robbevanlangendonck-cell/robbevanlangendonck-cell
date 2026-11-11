@@ -1,0 +1,25 @@
+{
+  "name": "Salon Lumière",
+  "address": "Retiesebaan 1, 2460 Kasterlee",
+  "phone": "014 00 00 00",
+  "email": "info@salon-lumiere.example",
+  "timezone": "Europe/Brussels",
+  "openingHours": {
+    "maandag": null,
+    "dinsdag": { "open": "09:00", "close": "18:00" },
+    "woensdag": { "open": "09:00", "close": "18:00" },
+    "donderdag": { "open": "09:00", "close": "18:00" },
+    "vrijdag": { "open": "09:00", "close": "18:00" },
+    "zaterdag": { "open": "08:00", "close": "13:00" },
+    "zondag": null
+  },
+  "services": [
+    { "name": "Knippen dames", "durationMinutes": 45 },
+    { "name": "Knippen heren", "durationMinutes": 30 },
+    { "name": "Knippen kinderen", "durationMinutes": 30 },
+    { "name": "Kleuren", "durationMinutes": 90 },
+    { "name": "Opsteekkapsel", "durationMinutes": 60 }
+  ],
+  "slotStepMinutes": 15,
+  "retentionDays": 30
+}
