@@ -1,0 +1,39 @@
+/* Salon Lumière – website met online boeken. Geen externe lettertypen, scripts of afbeeldingen. */
+:root{--cream:#fbf8f3;--terracotta:#8a5a3c;--terracotta-dark:#6f4630;--brown:#3d2f22;--muted:#6b5644;--bubble:#f1e8dc;--line:#e0d3c2;--paper:#fffdfa;--title:Georgia,'Times New Roman',serif;--text:Arial,Helvetica,sans-serif}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--cream);color:var(--brown);font:1rem/1.6 var(--text);padding-bottom:4.5rem}
+h1,h2,h3{font-family:var(--title);font-weight:normal;line-height:1.2;margin:0 0 .5rem}
+h1{font-size:clamp(2rem,7vw,3.25rem)}h2{font-size:1.75rem}h3{font-size:1.2rem}
+p{margin:0 0 1rem}a{color:var(--terracotta)}a:hover{color:var(--terracotta-dark)}
+:focus-visible{outline:3px solid var(--brown);outline-offset:2px}
+.wrap{max-width:60rem;margin:0 auto;padding:0 1rem}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.skip{position:absolute;left:-999px}.skip:focus{left:1rem;top:1rem;background:#fff;padding:.5rem;z-index:10}
+.btn{display:inline-block;min-height:2.75rem;padding:.65rem 1.4rem;border:2px solid var(--terracotta);border-radius:999px;background:var(--terracotta);color:#fff;font-weight:bold;text-decoration:none;text-align:center}
+.btn:hover{background:var(--terracotta-dark);border-color:var(--terracotta-dark);color:#fff}
+.btn--ghost{background:transparent;color:var(--terracotta)}
+header.top{background:var(--paper);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header.top .wrap{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;justify-content:space-between;padding-top:.6rem;padding-bottom:.6rem}
+.logo{font-family:var(--title);font-size:1.4rem;color:var(--brown);text-decoration:none}
+nav{display:flex;gap:1rem;align-items:center;flex-wrap:wrap}nav a:not(.btn){color:var(--brown);text-decoration:none}nav a:not(.btn):hover{text-decoration:underline}
+.hero{padding:3rem 0 2.5rem;text-align:center}.hero p{max-width:34rem;margin:0 auto 1.5rem;color:var(--muted);font-size:1.1rem}
+.hero .btn+.btn{margin-left:.5rem}
+section{padding:2.5rem 0;border-top:1px solid var(--line)}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;flex-wrap:wrap;gap:.25rem 1rem;align-items:center;justify-content:space-between;padding:.9rem 0;border-bottom:1px solid var(--line)}
+.list .meta{color:var(--muted);font-size:.95rem}
+.list .name{font-weight:bold;flex:1 1 12rem}
+.ph{padding:0 .25rem;border:1px dashed var(--terracotta);border-radius:.25rem;background:var(--bubble);font-weight:bold}
+.hours{width:100%;max-width:24rem;border-collapse:collapse}.hours th,.hours td{text-align:left;padding:.35rem 0;border-bottom:1px solid var(--line)}
+.grid{display:grid;gap:2rem}@media(min-width:44rem){.grid{grid-template-columns:1fr 1fr}}
+footer{border-top:1px solid var(--line);padding:2rem 0;color:var(--muted);font-size:.9rem}
+.bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:.5rem;padding:.6rem 1rem;background:var(--paper);border-top:1px solid var(--line);z-index:5}
+.bar .btn{flex:1}
+@media(min-width:44rem){.bar{display:none}body{padding-bottom:0}}
+.notice{padding:.75rem 1rem;border:1px solid var(--line);border-radius:.5rem;background:var(--paper);color:var(--muted);font-size:.9rem;margin-bottom:1rem}
+#agenda{position:relative;min-height:12rem}
+#agenda iframe{width:100%;min-height:680px;border:0;opacity:0;transition:opacity .4s}
+#agenda iframe.in{opacity:1}
+#status{padding:2rem 1rem;text-align:center;color:var(--muted)}
+@media(prefers-reduced-motion:reduce){#agenda iframe{transition:none}html{scroll-behavior:auto}}
